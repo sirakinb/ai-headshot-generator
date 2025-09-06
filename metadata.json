@@ -1,0 +1,5 @@
+{
+  "name": "AI Professional Headshot Generator",
+  "description": "Upload 3-5 photos of yourself and use AI to generate a professional headshot. This application uses the 'Nano Banana' (gemini-2.5-flash-image-preview) model for advanced image editing.",
+  "requestFramePermissions": []
+}
