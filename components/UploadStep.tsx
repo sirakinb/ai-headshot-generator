@@ -34,7 +34,7 @@ const UploadStep: React.FC<UploadStepProps> = ({
   onShowPricing,
 }) => {
   const { isSignedIn, user } = useUser();
-  const { canGenerate, generationsUsed, subscriptionType } = useUsage();
+  const { canGenerate, generationsUsed, generationsRemaining, maxGenerations, subscriptionType } = useUsage();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragOver, setIsDragOver] = React.useState(false);
 
@@ -257,13 +257,13 @@ const UploadStep: React.FC<UploadStepProps> = ({
         <div className="text-center mb-4">
           <div className="inline-flex items-center gap-2 bg-slate-800 px-4 py-2 rounded-lg border border-slate-700">
             <span className="text-slate-300 text-sm">
-              {subscriptionType === 'unlimited' 
-                ? '✨ Unlimited generations' 
-                : subscriptionType === 'standard'
-                ? `${5 - generationsUsed} generations remaining this month`
-                : generationsUsed === 0 
-                ? '1 free generation available' 
-                : 'Free generation used'}
+            {subscriptionType === 'unlimited' 
+              ? '✨ Unlimited generations' 
+              : subscriptionType === 'standard'
+              ? `${generationsRemaining} generations remaining this month`
+              : generationsRemaining > 0
+              ? `${generationsRemaining} free generation available` 
+              : 'Free generation used'}
             </span>
             {subscriptionType === 'free' && generationsUsed > 0 && onShowPricing && (
               <button

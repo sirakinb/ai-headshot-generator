@@ -3,6 +3,8 @@ import { useUser, useAuth } from '@clerk/clerk-react';
 
 interface UsageContextType {
   generationsUsed: number;
+  generationsRemaining: number;
+  maxGenerations: number;
   subscriptionType: 'free' | 'standard' | 'unlimited';
   canGenerate: boolean;
   incrementUsage: () => Promise<void>;
@@ -30,32 +32,97 @@ export const UsageProvider: React.FC<UsageProviderProps> = ({ children }) => {
   const [generationsUsed, setGenerationsUsed] = useState(0);
   const [subscriptionType, setSubscriptionType] = useState<'free' | 'standard' | 'unlimited'>('free');
 
+  // Helper function to check if we need to reset monthly usage
+  const shouldResetUsage = (lastResetDate?: string) => {
+    if (!lastResetDate) return false;
+    
+    const lastReset = new Date(lastResetDate);
+    const now = new Date();
+    
+    // Check if we're in a different month/year
+    return (
+      lastReset.getMonth() !== now.getMonth() || 
+      lastReset.getFullYear() !== now.getFullYear()
+    );
+  };
+
   // Load usage data from Clerk user metadata and check subscription status
   useEffect(() => {
     if (isSignedIn && user && has) {
-      // Get usage from Clerk user metadata (server-side, cross-device)
-      const savedUsage = user.publicMetadata?.generationsUsed as number;
+      // Check Clerk billing for subscription status first
+      console.log('Checking subscription status...');
+      console.log('User object:', user);
+      console.log('Has function available:', !!has);
       
-      if (typeof savedUsage === 'number') {
-        setGenerationsUsed(savedUsage);
+      let currentSubscription: 'free' | 'standard' | 'unlimited' = 'free';
+      
+      // Try different possible plan keys
+      const unlimitedPlanKeys = ['unlimited_plan', 'unlimited_ai_headshots', 'Unlimited AI Headshots'];
+      const standardPlanKeys = ['standard_plan', 'standard-plan'];
+      
+      let foundPlan = false;
+      for (const planKey of unlimitedPlanKeys) {
+        if (has({ plan: planKey })) {
+          console.log(`Found unlimited plan with key: ${planKey}`);
+          currentSubscription = 'unlimited';
+          foundPlan = true;
+          break;
+        }
       }
       
-      // Check Clerk billing for subscription status
-      // Note: Plan key must use underscores, not hyphens
-      if (has({ plan: 'unlimited_plan' })) {
-        setSubscriptionType('unlimited');
-      } else if (has({ plan: 'standard_plan' })) {
-        setSubscriptionType('standard');
-      } else {
-        setSubscriptionType('free');
+      if (!foundPlan) {
+        for (const planKey of standardPlanKeys) {
+          if (has({ plan: planKey })) {
+            console.log(`Found standard plan with key: ${planKey}`);
+            currentSubscription = 'standard';
+            foundPlan = true;
+            break;
+          }
+        }
+      }
+      
+      if (!foundPlan) {
+        console.log('No paid plan found, defaulting to free');
+      }
+      
+      console.log('Final subscription type:', currentSubscription);
+      setSubscriptionType(currentSubscription);
+
+      // Get usage data from Clerk user metadata (server-side, cross-device)
+      const savedUsage = user.unsafeMetadata?.generationsUsed as number;
+      const lastResetDate = user.unsafeMetadata?.lastResetDate as string;
+      
+      // For Standard plan, check if we need monthly reset
+      if (currentSubscription === 'standard' && shouldResetUsage(lastResetDate)) {
+        // Reset usage for new month
+        setGenerationsUsed(0);
+        // Update Clerk metadata with reset
+        user.update({
+          unsafeMetadata: {
+            ...user.unsafeMetadata,
+            generationsUsed: 0,
+            lastResetDate: new Date().toISOString(),
+          },
+        }).then(() => user.reload()).catch(console.error);
+      } else if (typeof savedUsage === 'number') {
+        setGenerationsUsed(savedUsage);
       }
     }
   }, [isSignedIn, user, has]);
 
+  // Helper function to get max generations based on subscription
+  const getMaxGenerations = () => {
+    if (subscriptionType === 'unlimited') return Infinity;
+    if (subscriptionType === 'standard') return 5;
+    return 1; // Free tier
+  };
+
+  const maxGenerations = getMaxGenerations();
+  const generationsRemaining = maxGenerations === Infinity ? Infinity : maxGenerations - generationsUsed;
+
   const canGenerate = () => {
     if (subscriptionType === 'unlimited') return true;
-    if (subscriptionType === 'standard') return generationsUsed < 5; // 5 generations per month
-    return generationsUsed < 1; // Free tier: only 1 generation
+    return generationsUsed < maxGenerations;
   };
 
   const incrementUsage = async () => {
@@ -65,22 +132,54 @@ export const UsageProvider: React.FC<UsageProviderProps> = ({ children }) => {
     // Save to Clerk user metadata (server-side, cross-device)
     if (user) {
       try {
+        const updateData = {
+          ...user.unsafeMetadata,
+          generationsUsed: newCount,
+        };
+
+        // For Standard plan, also track when usage started (for monthly reset)
+        if (subscriptionType === 'standard' && !user.unsafeMetadata?.lastResetDate) {
+          updateData.lastResetDate = new Date().toISOString();
+        }
+
+        // Try the correct Clerk API method - using unsafeMetadata for client-side updates
         await user.update({
-          publicMetadata: {
-            ...user.publicMetadata,
-            generationsUsed: newCount,
-          },
+          unsafeMetadata: updateData,
         });
+        // Force reload to get updated data
+        await user.reload();
+        
       } catch (error) {
         console.error('Failed to update usage count:', error);
+        console.error('Error details:', error);
         // Revert on error
         setGenerationsUsed(prev => prev - 1);
       }
     }
   };
 
-  const resetUsage = () => {
+  const resetUsage = async () => {
     setGenerationsUsed(0);
+    
+    // Also update Clerk metadata
+    if (user) {
+      try {
+        await user.update({
+          unsafeMetadata: {
+            ...user.unsafeMetadata,
+            generationsUsed: 0,
+            lastResetDate: new Date().toISOString(),
+          },
+        });
+        
+        // Force reload to get updated data
+        await user.reload();
+        
+      } catch (error) {
+        console.error('Failed to reset usage count:', error);
+        console.error('Error details:', error);
+      }
+    }
   };
 
   const upgradeSubscription = (type: 'standard' | 'unlimited') => {
@@ -92,6 +191,8 @@ export const UsageProvider: React.FC<UsageProviderProps> = ({ children }) => {
     <UsageContext.Provider
       value={{
         generationsUsed,
+        generationsRemaining,
+        maxGenerations,
         subscriptionType,
         canGenerate: canGenerate(),
         incrementUsage,
