@@ -29,7 +29,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onBack }) => {
           </div>
           
           <p className="text-slate-400 text-lg max-w-2xl mx-auto">
-            Upgrade to unlimited professional headshots with no watermarks. 
+            Upgrade your professional headshots with no watermarks. 
             Perfect for professionals who need regular updates to their image.
           </p>
         </div>
