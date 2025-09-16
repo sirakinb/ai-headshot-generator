@@ -7,7 +7,7 @@ if (!process.env.GEMINI_API_KEY) {
 }
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-const model = 'gemini-2.0-flash-exp-image-generation';
+const model = 'gemini-2.5-flash-exp-image-generation';
 
 export const generateHeadshot = async (
   images: UploadedFile[],
