@@ -46,23 +46,37 @@ const UploadStep: React.FC<UploadStepProps> = ({
         return;
     }
 
+    // Check all files first
+    const invalidFiles = fileArray.filter(file => !file.type.startsWith('image/'));
+    if (invalidFiles.length > 0) {
+      setError("Please upload only image files (PNG, JPG).");
+      return;
+    }
+
+    // Process valid files
     fileArray.forEach(file => {
-      // Check file type
-      if (!file.type.startsWith('image/')) {
-        setError("Please upload only image files (PNG, JPG).");
-        return;
-      }
-      
+      console.log('Processing file:', file.name, 'type:', file.type);
       const reader = new FileReader();
       reader.onload = (e) => {
-        const base64 = (e.target?.result as string).split(',')[1];
-        if (base64) {
-          setUploadedFiles(prev => [...prev, {
-            base64,
-            mimeType: file.type,
-            name: file.name
-          }]);
+        const result = e.target?.result as string;
+        console.log('File read complete:', file.name, 'result length:', result?.length);
+        if (result) {
+          const base64 = result.split(',')[1];
+          if (base64) {
+            console.log('Adding file to state:', file.name);
+            setUploadedFiles(prev => {
+              console.log('Previous files:', prev.length);
+              return [...prev, {
+                base64,
+                mimeType: file.type,
+                name: file.name
+              }];
+            });
+          }
         }
+      };
+      reader.onerror = () => {
+        setError(`Failed to read file: ${file.name}`);
       };
       reader.readAsDataURL(file);
     });
@@ -71,6 +85,7 @@ const UploadStep: React.FC<UploadStepProps> = ({
 
   const handleFileChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
+    console.log('File input changed, files:', files);
     if (!files) return;
     
     // Clear the input so the same file can be selected again
@@ -81,6 +96,7 @@ const UploadStep: React.FC<UploadStepProps> = ({
       return;
     }
     
+    console.log('Processing files:', Array.from(files).map(f => f.name));
     processFiles(files);
   }, [processFiles, isSignedIn, setError]);
 
