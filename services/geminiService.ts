@@ -7,30 +7,27 @@ if (!process.env.GEMINI_API_KEY) {
 }
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-const model = 'gemini-2.5-flash-exp-image-generation';
+const model = 'gemini-2.5-flash-image-preview';
 
 export const generateHeadshot = async (
   images: UploadedFile[],
   prompt: string
 ): Promise<{ image: string | null; text: string | null }> => {
   try {
-    const imageParts = images.map(img => ({
-      inlineData: {
-        data: img.base64,
-        mimeType: img.mimeType,
-      },
-    }));
-
-    const textPart = { text: prompt };
+    // Create the content array with text prompt and images
+    const contentParts = [
+      { text: prompt },
+      ...images.map(img => ({
+        inlineData: {
+          data: img.base64,
+          mimeType: img.mimeType,
+        },
+      }))
+    ];
 
     const response = await ai.models.generateContent({
       model,
-      contents: [{
-        parts: [...imageParts, textPart],
-      }],
-      config: {
-        responseModalities: [Modality.IMAGE, Modality.TEXT],
-      },
+      contents: contentParts,
     });
 
     let resultImage: string | null = null;
