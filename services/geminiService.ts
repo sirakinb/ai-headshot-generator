@@ -2,12 +2,12 @@
 import { GoogleGenAI, Modality } from "@google/genai";
 import { UploadedFile } from '../types';
 
-if (!process.env.API_KEY) {
-    throw new Error("API_KEY environment variable is not set.");
+if (!process.env.GEMINI_API_KEY) {
+    throw new Error("GEMINI_API_KEY environment variable is not set.");
 }
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-const model = 'gemini-2.5-flash-image-preview';
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const model = 'gemini-2.0-flash-exp-image-generation';
 
 export const generateHeadshot = async (
   images: UploadedFile[],
@@ -25,9 +25,9 @@ export const generateHeadshot = async (
 
     const response = await ai.models.generateContent({
       model,
-      contents: {
+      contents: [{
         parts: [...imageParts, textPart],
-      },
+      }],
       config: {
         responseModalities: [Modality.IMAGE, Modality.TEXT],
       },
