@@ -5,7 +5,7 @@ interface UsageContextType {
   generationsUsed: number;
   subscriptionType: 'free' | 'standard' | 'unlimited';
   canGenerate: boolean;
-  incrementUsage: () => void;
+  incrementUsage: () => Promise<void>;
   resetUsage: () => void;
   upgradeSubscription: (type: 'standard' | 'unlimited') => void;
 }
@@ -30,14 +30,14 @@ export const UsageProvider: React.FC<UsageProviderProps> = ({ children }) => {
   const [generationsUsed, setGenerationsUsed] = useState(0);
   const [subscriptionType, setSubscriptionType] = useState<'free' | 'standard' | 'unlimited'>('free');
 
-  // Load usage data from localStorage and check subscription status
+  // Load usage data from Clerk user metadata and check subscription status
   useEffect(() => {
     if (isSignedIn && user && has) {
-      const userId = user.id;
-      const savedUsage = localStorage.getItem(`usage_${userId}`);
+      // Get usage from Clerk user metadata (server-side, cross-device)
+      const savedUsage = user.publicMetadata?.generationsUsed as number;
       
-      if (savedUsage) {
-        setGenerationsUsed(parseInt(savedUsage, 10));
+      if (typeof savedUsage === 'number') {
+        setGenerationsUsed(savedUsage);
       }
       
       // Check Clerk billing for subscription status
@@ -52,22 +52,31 @@ export const UsageProvider: React.FC<UsageProviderProps> = ({ children }) => {
     }
   }, [isSignedIn, user, has]);
 
-  // Save usage data to localStorage whenever it changes
-  useEffect(() => {
-    if (isSignedIn && user) {
-      const userId = user.id;
-      localStorage.setItem(`usage_${userId}`, generationsUsed.toString());
-    }
-  }, [generationsUsed, isSignedIn, user]);
-
   const canGenerate = () => {
     if (subscriptionType === 'unlimited') return true;
     if (subscriptionType === 'standard') return generationsUsed < 5; // 5 generations per month
     return generationsUsed < 1; // Free tier: only 1 generation
   };
 
-  const incrementUsage = () => {
-    setGenerationsUsed(prev => prev + 1);
+  const incrementUsage = async () => {
+    const newCount = generationsUsed + 1;
+    setGenerationsUsed(newCount);
+    
+    // Save to Clerk user metadata (server-side, cross-device)
+    if (user) {
+      try {
+        await user.update({
+          publicMetadata: {
+            ...user.publicMetadata,
+            generationsUsed: newCount,
+          },
+        });
+      } catch (error) {
+        console.error('Failed to update usage count:', error);
+        // Revert on error
+        setGenerationsUsed(prev => prev - 1);
+      }
+    }
   };
 
   const resetUsage = () => {

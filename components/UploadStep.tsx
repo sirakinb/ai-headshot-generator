@@ -39,7 +39,7 @@ const UploadStep: React.FC<UploadStepProps> = ({
   const [isDragOver, setIsDragOver] = React.useState(false);
 
   const processFiles = useCallback((files: FileList | File[]) => {
-    const fileArray = Array.from(files);
+    const fileArray = Array.isArray(files) ? files : Array.from(files);
     
     if (uploadedFiles.length + fileArray.length > 5) {
         setError("You can upload a maximum of 5 images.");
@@ -86,18 +86,21 @@ const UploadStep: React.FC<UploadStepProps> = ({
   const handleFileChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     console.log('File input changed, files:', files);
-    if (!files) return;
-    
-    // Clear the input so the same file can be selected again
-    event.target.value = '';
+    if (!files || files.length === 0) return;
     
     if (!isSignedIn) {
       setError("Please sign up to upload photos and create your headshot.");
       return;
     }
     
-    console.log('Processing files:', Array.from(files).map(f => f.name));
-    processFiles(files);
+    // Convert to array BEFORE clearing the input
+    const fileArray = Array.from(files);
+    console.log('Processing files:', fileArray.map(f => f.name));
+    
+    // Clear the input AFTER converting to array
+    event.target.value = '';
+    
+    processFiles(fileArray);
   }, [processFiles, isSignedIn, setError]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {

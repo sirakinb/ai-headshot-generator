@@ -91,7 +91,7 @@ function AppContent() {
         }
         
         setGeneratedImage(finalImage);
-        incrementUsage(); // Track the usage
+        await incrementUsage(); // Track the usage
         setAppState(AppState.RESULT);
       } else {
         throw new Error(result?.text || "The AI did not return an image. Please try a different prompt or different images.");
